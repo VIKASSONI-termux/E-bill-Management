@@ -1,0 +1,106 @@
+Server running on port 5001
+Connected to MongoDB
+Registration attempt: {
+  name: 'Test User',
+  email: 'testuser6@example.com',
+  registrationNumber: 'TEST006',
+  role: undefined
+}
+Registration attempt: {
+  name: 'Test User',
+  email: 'testuser6@example.com',
+  registrationNumber: 'TEST007',
+  role: undefined
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'soni678vikas@gmail.com',
+  registrationNumber: '123',
+  role: 'user'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'soni678vikas@gmail.com',
+  registrationNumber: '123',
+  role: 'user'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'soni678vikas@gmail.com',
+  registrationNumber: '123',
+  role: 'user'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'soni678vikas@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'vikas12@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'vikas12@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'uni12@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'uni12@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'uni12@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'New User',
+  email: 'newuser1757130976@example.com',
+  registrationNumber: 'NEW1757130976',
+  role: 'user'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'uni12@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Registration attempt: {
+  name: 'VIKAS SONI',
+  email: 'soni678vikas@gmail.com',
+  registrationNumber: '123',
+  role: 'operations_manager'
+}
+Manager/Admin requesting reports
+Found reports for manager: 0
+Manager/Admin requesting reports
+Found reports for manager: 0
+Manager/Admin requesting reports
+Found reports for manager: 0
+Manager/Admin requesting reports
+Found reports for manager: 0
+Registration attempt: {
+  name: 'Test Success User',
+  email: 'success1757131377@example.com',
+  registrationNumber: 'SUCCESS1757131377',
+  role: 'user'
+}
+Registration attempt: {
+  name: 'qsdfdf',
+  email: 'user@example.com',
+  registrationNumber: '454',
+  role: 'user'
+}

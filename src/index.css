@@ -1,0 +1,219 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .dashboard-container {
+    @apply min-h-screen bg-gray-50;
+  }
+
+  .dashboard-header {
+    @apply bg-white shadow-sm border-b border-gray-200 px-6 py-4;
+  }
+
+  .dashboard-header h1 {
+    @apply text-2xl font-bold text-gray-900;
+  }
+
+  .dashboard-header p {
+    @apply text-gray-600 mt-1;
+  }
+
+  .dashboard-content {
+    @apply p-6;
+  }
+
+  .loading {
+    @apply flex items-center justify-center py-12 text-gray-600;
+  }
+
+  .report-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4;
+  }
+
+  .report-card h3 {
+    @apply text-lg font-semibold text-gray-900 mb-2;
+  }
+
+  .report-card p {
+    @apply text-gray-600 mb-4;
+  }
+
+  .report-meta {
+    @apply flex flex-wrap gap-4 text-sm text-gray-500 mb-3;
+  }
+
+  .assigned-users {
+    @apply text-sm text-gray-600 mb-3;
+  }
+
+  .report-tags {
+    @apply mt-3;
+  }
+
+  .users-table {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
+  }
+
+  .users-table table {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+
+  .users-table th {
+    @apply px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+  }
+
+  .users-table td {
+    @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+  }
+
+  .role-select {
+    @apply px-3 py-1 border border-gray-300 rounded-md text-sm;
+  }
+
+  .status {
+    @apply px-2 py-1 text-xs font-medium rounded-full;
+  }
+
+  .status.active {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .status.inactive {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .status-btn {
+    @apply px-3 py-1 text-xs font-medium rounded-md;
+  }
+
+  .status-btn.activate {
+    @apply bg-green-100 text-green-700 hover:bg-green-200;
+  }
+
+  .status-btn.deactivate {
+    @apply bg-red-100 text-red-700 hover:bg-red-200;
+  }
+
+  .stats-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8;
+  }
+
+  .stat-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center;
+  }
+
+  .stat-card h3 {
+    @apply text-sm font-medium text-gray-500 mb-2;
+  }
+
+  .stat-number {
+    @apply text-3xl font-bold text-gray-900;
+  }
+
+  .role-stats {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8;
+  }
+
+  .role-stats h3 {
+    @apply text-lg font-semibold text-gray-900 mb-4;
+  }
+
+  .role-grid {
+    @apply grid grid-cols-1 md:grid-cols-3 gap-4;
+  }
+
+  .role-card {
+    @apply bg-gray-50 rounded-lg p-4 text-center;
+  }
+
+  .role-card h4 {
+    @apply text-sm font-medium text-gray-500 mb-1;
+  }
+
+  .role-card p {
+    @apply text-2xl font-bold text-gray-900;
+  }
+
+  .quick-actions {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  }
+
+  .quick-actions h3 {
+    @apply text-lg font-semibold text-gray-900 mb-4;
+  }
+
+  .action-buttons {
+    @apply flex flex-wrap gap-4;
+  }
+
+  .action-btn {
+    @apply px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors;
+  }
+
+  .report-overview h2 {
+    @apply text-2xl font-bold text-gray-900 mb-6;
+  }
+
+  .reports-list {
+    @apply space-y-4;
+  }
+
+  .report-item {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  }
+
+  .report-info h3 {
+    @apply text-lg font-semibold text-gray-900 mb-2;
+  }
+
+  .report-info p {
+    @apply text-gray-600 mb-4;
+  }
+
+  .report-details {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600 mb-4;
+  }
+
+  .report-actions {
+    @apply flex gap-3;
+  }
+
+  .action-btn {
+    @apply px-4 py-2 rounded-md text-sm font-medium transition-colors;
+  }
+
+  .action-btn.export {
+    @apply bg-blue-600 text-white hover:bg-blue-700;
+  }
+
+  .search-reports h2 {
+    @apply text-2xl font-bold text-gray-900 mb-6;
+  }
+
+  .search-form {
+    @apply max-w-md mb-6;
+  }
+
+  .form-group {
+    @apply mb-4;
+  }
+
+  .form-group label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+
+  .form-input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+
+  .form-input:focus {
+    @apply border-blue-500;
+  }
+}

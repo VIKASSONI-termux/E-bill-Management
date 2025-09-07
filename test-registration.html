@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select { width: 300px; padding: 8px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .error { color: red; margin-top: 10px; }
+        .success { color: green; margin-top: 10px; }
+        .debug { background: #f8f9fa; padding: 10px; margin-top: 10px; border: 1px solid #dee2e6; }
+    </style>
+</head>
+<body>
+    <h1>Registration Test</h1>
+    
+    <form id="registrationForm">
+        <div class="form-group">
+            <label for="name">Full Name *</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="email">Email *</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password *</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="confirmPassword">Confirm Password *</label>
+            <input type="password" id="confirmPassword" name="confirmPassword" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="registrationNumber">Registration Number *</label>
+            <input type="text" id="registrationNumber" name="registrationNumber" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="role">Role *</label>
+            <select id="role" name="role" required>
+                <option value="">Select Role</option>
+                <option value="user">User</option>
+                <option value="operations_manager">Operations Manager</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="text" id="phone" name="phone">
+        </div>
+        
+        <div class="form-group">
+            <label for="department">Department</label>
+            <input type="text" id="department" name="department">
+        </div>
+        
+        <div class="form-group">
+            <label for="position">Position</label>
+            <input type="text" id="position" name="position">
+        </div>
+        
+        <button type="submit">Register</button>
+    </form>
+    
+    <div id="result"></div>
+    <div id="debug"></div>
+
+    <script>
+        document.getElementById('registrationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Remove confirmPassword before sending
+            delete data.confirmPassword;
+            
+            // Show what we're sending
+            document.getElementById('debug').innerHTML = `
+                <h3>Debug Info:</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = `
+                        <div class="success">
+                            <h3>Success!</h3>
+                            <p>${result.message}</p>
+                            <p>User ID: ${result.user.id}</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <div class="error">
+                            <h3>Error (${response.status})</h3>
+                            <p>${result.message}</p>
+                            ${result.errors ? `<p>Validation errors: ${result.errors.join(', ')}</p>` : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div class="error">
+                        <h3>Network Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
