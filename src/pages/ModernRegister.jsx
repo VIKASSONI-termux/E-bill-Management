@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import axios from 'axios';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -32,6 +33,7 @@ const ModernRegister = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [adminExists, setAdminExists] = useState(false);
   const { register: registerUser } = useAuth();
   const navigate = useNavigate();
 
@@ -42,6 +44,22 @@ const ModernRegister = () => {
   } = useForm({
     resolver: zodResolver(registerSchema),
   });
+
+  // Check if admin already exists
+  useEffect(() => {
+    const checkAdminExists = async () => {
+      try {
+        const response = await axios.get('http://localhost:5001/api/admin/check-admin');
+        setAdminExists(response.data.adminExists);
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        // If there's an error, assume admin might exist and disable the option
+        setAdminExists(true);
+      }
+    };
+
+    checkAdminExists();
+  }, []);
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -77,7 +95,11 @@ const ModernRegister = () => {
       let errorMessage = result.message;
       
       if (result.message.includes('already exists')) {
-        errorMessage = 'An account with this email or registration number already exists. Please use different credentials or try logging in instead.';
+        if (result.message.includes('admin already exists')) {
+          errorMessage = 'An admin already exists in the system. Only one admin is allowed. Please select a different role.';
+        } else {
+          errorMessage = 'An account with this email or registration number already exists. Please use different credentials or try logging in instead.';
+        }
       } else if (result.message.includes('required')) {
         errorMessage = 'Please fill in all required fields.';
       } else if (result.message.includes('Validation error')) {
@@ -196,14 +218,16 @@ const ModernRegister = () => {
                   <option value="">Select your role</option>
                   <option value="user">User - View and download assigned reports</option>
                   <option value="operations_manager">Operations Manager - Create and manage reports</option>
-                  <option value="admin">Admin - Manage users and system settings</option>
+                  <option value="admin" disabled={adminExists}>
+                    {adminExists ? 'Admin - Not available (Admin already exists)' : 'Admin - Manage users and system settings'}
+                  </option>
                 </select>
                 {errors.role && (
                   <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
                     Phone Number
@@ -216,30 +240,10 @@ const ModernRegister = () => {
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
-                    Department
-                  </label>
-                  <Input
-                    id="department"
-                    type="text"
-                    placeholder="Enter your department"
-                    {...register('department')}
-                  />
-                </div>
+                
               </div>
 
-              <div>
-                <label htmlFor="position" className="block text-sm font-medium text-gray-700 mb-1">
-                  Position
-                </label>
-                <Input
-                  id="position"
-                  type="text"
-                  placeholder="Enter your position"
-                  {...register('position')}
-                />
-              </div>
+              
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

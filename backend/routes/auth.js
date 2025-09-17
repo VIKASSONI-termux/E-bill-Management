@@ -31,6 +31,16 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Check if trying to register as admin and admin already exists
+    if (role === 'admin') {
+      const existingAdmin = await User.findOne({ role: 'admin' });
+      if (existingAdmin) {
+        return res.status(400).json({
+          message: 'An admin already exists. Only one admin is allowed in the system.'
+        });
+      }
+    }
+
     // Create new user
     const user = new User({
       name,

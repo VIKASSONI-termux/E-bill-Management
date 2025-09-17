@@ -32,6 +32,22 @@ const billSchema = new mongoose.Schema({
     enum: ['draft', 'pending', 'paid', 'overdue', 'cancelled'],
     default: 'draft'
   },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedAt: {
+    type: Date
+  },
+  rejectionReason: {
+    type: String,
+    trim: true
+  },
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],

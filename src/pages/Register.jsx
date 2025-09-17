@@ -27,7 +27,7 @@ const Register = () => {
           navigate('/report-management', { replace: true });
           break;
         case 'user':
-          navigate('/user/dashboard', { replace: true });
+          navigate('/user', { replace: true });
           break;
         default:
           navigate('/login', { replace: true });

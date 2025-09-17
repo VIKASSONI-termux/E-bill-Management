@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const reportSchema = new mongoose.Schema({
   reportId: {
     type: String,
-    required: true,
     unique: true
   },
   title: {
@@ -15,30 +14,72 @@ const reportSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  assignedUsers: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  dueDate: {
+    type: Date
+  },
+  category: {
+    type: String,
+    enum: ['electricity', 'water', 'gas', 'internet', 'phone', 'rent', 'insurance', 'other'],
     required: true
   },
   status: {
     type: String,
-    enum: ['draft', 'active', 'archived', 'deleted'],
+    enum: ['draft', 'pending', 'paid', 'overdue', 'cancelled'],
     default: 'draft'
+  },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedAt: {
+    type: Date
+  },
+  rejectionReason: {
+    type: String,
+    trim: true
   },
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium'
   },
-  category: {
-    type: String,
-    trim: true
-  },
   tags: [String],
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  assignedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  files: [{
+    fileName: String,
+    originalName: String,
+    filePath: String,
+    fileSize: Number,
+    mimeType: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  paymentInfo: {
+    paymentMethod: String,
+    paymentDate: Date,
+    transactionId: String,
+    notes: String
+  },
   metadata: {
     type: Map,
     of: String
@@ -59,8 +100,8 @@ reportSchema.pre('save', function(next) {
   next();
 });
 
-// Generate reportId before saving
-reportSchema.pre('save', function(next) {
+// Generate reportId before validation
+reportSchema.pre('validate', function(next) {
   if (!this.reportId) {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substr(2, 9);
@@ -68,5 +109,11 @@ reportSchema.pre('save', function(next) {
   }
   next();
 });
+
+// Index for better query performance
+reportSchema.index({ createdBy: 1, createdAt: -1 });
+reportSchema.index({ category: 1 });
+reportSchema.index({ status: 1 });
+reportSchema.index({ dueDate: 1 });
 
 module.exports = mongoose.model('Report', reportSchema);

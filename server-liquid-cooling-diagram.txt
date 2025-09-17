@@ -1,0 +1,94 @@
+LIQUID-COOLED SERVER RACK DIAGRAM
+=====================================
+
+    ┌─────────────────────────────────────────────────────────┐
+    │                    COOLING TOWER                        │
+    │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐    │
+    │  │ RADIATOR│  │ RADIATOR│  │ RADIATOR│  │ RADIATOR│    │
+    │  └─────────┘  └─────────┘  └─────────┘  └─────────┘    │
+    └─────────────────────────────────────────────────────────┘
+                              │
+                              │ Coolant Pipes
+                              ▼
+    ┌─────────────────────────────────────────────────────────┐
+    │              COOLING DISTRIBUTION UNIT (CDU)            │
+    │  ┌─────────────────────────────────────────────────┐    │
+    │  │  PUMP │ TEMP │ FLOW │ PRESSURE │ ALARM │        │    │
+    │  │  CTRL │ SENS │ CTRL │ MONITOR  │ SYS   │        │    │
+    │  └─────────────────────────────────────────────────┘    │
+    └─────────────────────────────────────────────────────────┘
+                              │
+                              │ Distribution Pipes
+                              ▼
+    ┌─────────────────────────────────────────────────────────┐
+    │                    SERVER RACK                          │
+    │                                                         │
+    │  ┌─────────────────────────────────────────────────┐    │
+    │  │  SERVER UNIT 1                                  │    │
+    │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │    │
+    │  │  │   CPU   │  │   GPU   │  │   RAM   │         │    │
+    │  │  │ COLD    │  │ COLD    │  │ COLD    │         │    │
+    │  │  │ PLATE   │  │ PLATE   │  │ PLATE   │         │    │
+    │  │  └─────────┘  └─────────┘  └─────────┘         │    │
+    │  │     │           │           │                   │    │
+    │  │     └───────────┼───────────┘                   │    │
+    │  │                 │                               │    │
+    │  │         ┌───────▼───────┐                       │    │
+    │  │         │  COOLANT      │                       │    │
+    │  │         │  PIPES        │                       │    │
+    │  │         └───────────────┘                       │    │
+    │  └─────────────────────────────────────────────────┘    │
+    │                                                         │
+    │  ┌─────────────────────────────────────────────────┐    │
+    │  │  SERVER UNIT 2                                  │    │
+    │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │    │
+    │  │  │   CPU   │  │   GPU   │  │   RAM   │         │    │
+    │  │  │ COLD    │  │ COLD    │  │ COLD    │         │    │
+    │  │  │ PLATE   │  │ PLATE   │  │ PLATE   │         │    │
+    │  │  └─────────┘  └─────────┘  └─────────┘         │    │
+    │  │     │           │           │                   │    │
+    │  │     └───────────┼───────────┘                   │    │
+    │  │                 │                               │    │
+    │  │         ┌───────▼───────┐                       │    │
+    │  │         │  COOLANT      │                       │    │
+    │  │         │  PIPES        │                       │    │
+    │  │         └───────────────┘                       │    │
+    │  └─────────────────────────────────────────────────┘    │
+    │                                                         │
+    │  ┌─────────────────────────────────────────────────┐    │
+    │  │  SERVER UNIT 3                                  │    │
+    │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │    │
+    │  │  │   CPU   │  │   GPU   │  │   RAM   │         │    │
+    │  │  │ COLD    │  │ COLD    │  │ COLD    │         │    │
+    │  │  │ PLATE   │  │ PLATE   │  │ PLATE   │         │    │
+    │  │  └─────────┘  └─────────┘  └─────────┘         │    │
+    │  │     │           │           │                   │    │
+    │  │     └───────────┼───────────┘                   │    │
+    │  │                 │                               │    │
+    │  │         ┌───────▼───────┐                       │    │
+    │  │         │  COOLANT      │                       │    │
+    │  │         │  PIPES        │                       │    │
+    │  │         └───────────────┘                       │    │
+    │  └─────────────────────────────────────────────────┘    │
+    └─────────────────────────────────────────────────────────┘
+
+KEY COMPONENTS:
+===============
+
+1. COOLING TOWER: External heat dissipation system
+2. CDU: Central control unit managing coolant flow
+3. COLD PLATES: Direct contact cooling for hot components
+4. COOLANT PIPES: Circulating fluid carrying heat away
+5. SERVER UNITS: Individual servers with liquid-cooled components
+
+COOLANT FLOW:
+=============
+Coolant flows from CDU → Server Units → Cold Plates → Back to CDU → Cooling Tower
+
+BENEFITS:
+=========
+- Higher cooling efficiency than air cooling
+- Reduced noise levels
+- Better temperature control
+- Higher component density possible
+- Lower power consumption for cooling

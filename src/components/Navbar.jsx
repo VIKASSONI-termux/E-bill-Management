@@ -21,7 +21,7 @@ const Navbar = () => {
       case 'operations_manager':
         return '/report-management';
       case 'user':
-        return '/user/dashboard';
+        return '/user';
       default:
         return '/login';
     }
@@ -64,7 +64,7 @@ const Navbar = () => {
                 <span className="text-white font-bold text-sm">EB</span>
               </div>
               <span className="text-xl font-bold text-gray-900">
-                Electric Bill Management
+                Electricity Bill Management
               </span>
             </Link>
           </div>

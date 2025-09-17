@@ -1,7 +1,7 @@
 {
   "name": "bill-management-backend",
   "version": "1.0.0",
-  "description": "Backend for Electric Bill Report Management System",
+  "description": "Backend for Electricity Bill Report Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

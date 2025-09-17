@@ -46,7 +46,7 @@ const ModernLogin = () => {
           navigate('/report-management');
           break;
         case 'user':
-          navigate('/user/dashboard');
+          navigate('/user');
           break;
         default:
           navigate('/');

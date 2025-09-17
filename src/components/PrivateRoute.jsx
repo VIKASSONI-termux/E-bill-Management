@@ -27,7 +27,7 @@ const PrivateRoute = ({ children, allowedRoles }) => {
       case 'operations_manager':
         return <Navigate to="/report-management" replace />;
       case 'user':
-        return <Navigate to="/user/dashboard" replace />;
+        return <Navigate to="/user" replace />;
       default:
         return <Navigate to="/login" replace />;
     }

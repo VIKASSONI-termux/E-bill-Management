@@ -18,25 +18,9 @@ const Landing = () => {
               <span className="text-blue-600"> Bill Reports</span>
             </h2>
             <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-              A comprehensive solution for managing electric bill reports with role-based access control, 
+              A comprehensive solution for managing electricity bill reports with role-based access control, 
               secure file uploads, and efficient report distribution.
             </p>
-            <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-              <div className="rounded-md shadow">
-                <Link to="/register">
-                  <Button size="lg" className="w-full">
-                    Get Started
-                  </Button>
-                </Link>
-              </div>
-              <div className="mt-3 rounded-md shadow sm:mt-0 sm:ml-3">
-                <Link to="/login">
-                  <Button variant="outline" size="lg" className="w-full">
-                    Login
-                  </Button>
-                </Link>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -201,7 +185,7 @@ const Landing = () => {
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
               <FileText className="h-8 w-8 text-blue-400 mr-2" />
-              <h4 className="text-xl font-bold">Electric Bill Management</h4>
+              <h4 className="text-xl font-bold">Electricity Bill Management</h4>
             </div>
             <p className="text-gray-400">
               Streamlining bill report management for modern organizations

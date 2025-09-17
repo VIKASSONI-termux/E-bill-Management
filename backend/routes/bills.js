@@ -1,49 +1,10 @@
 const express = require('express');
 const Bill = require('../models/Bill');
 const { auth, requireRole } = require('../middleware/auth');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const router = express.Router();
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only PDF, images, and Word documents are allowed.'));
-    }
-  }
-});
 
 // Get all bills for the current user
 router.get('/my-bills', auth, requireRole(['user']), async (req, res) => {
@@ -51,11 +12,16 @@ router.get('/my-bills', auth, requireRole(['user']), async (req, res) => {
     const { page = 1, limit = 10, category, status, search } = req.query;
     const skip = (page - 1) * limit;
     
-    // Build query - include bills created by user OR assigned to user
+    // Build query - include bills created by user OR assigned to user, but only approved bills
     const query = {
-      $or: [
-        { createdBy: req.user._id },
-        { assignedUsers: req.user._id }
+      $and: [
+        {
+          $or: [
+            { createdBy: req.user._id },
+            { assignedUsers: req.user._id }
+          ]
+        },
+        { approvalStatus: 'approved' }
       ]
     };
     
@@ -108,13 +74,23 @@ router.get('/my-bills', auth, requireRole(['user']), async (req, res) => {
   }
 });
 
-// Create a new bill
-router.post('/', auth, requireRole(['user', 'operations_manager', 'admin']), async (req, res) => {
+// Create a new bill (admin and operations manager only)
+router.post('/', auth, requireRole(['operations_manager', 'admin']), async (req, res) => {
   try {
     const billData = {
       ...req.body,
       createdBy: req.user._id
     };
+    
+    // Set approval status based on creator role
+    if (req.user.role === 'admin') {
+      billData.approvalStatus = 'approved';
+      billData.approvedBy = req.user._id;
+      billData.approvedAt = new Date();
+    } else {
+      // Operations manager creates bills that need admin approval
+      billData.approvalStatus = 'pending';
+    }
     
     // If no assignedUsers specified, assign to creator
     if (!billData.assignedUsers || billData.assignedUsers.length === 0) {
@@ -137,116 +113,106 @@ router.post('/', auth, requireRole(['user', 'operations_manager', 'admin']), asy
   }
 });
 
-// Upload files to a bill
-router.post('/:billId/files', auth, requireRole(['user']), upload.array('files', 5), async (req, res) => {
+// Get pending bills for admin approval
+router.get('/pending-approval', auth, requireRole(['admin']), async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+    
+    const bills = await Bill.find({ approvalStatus: 'pending' })
+      .populate('createdBy', 'name email role')
+      .populate('assignedUsers', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await Bill.countDocuments({ approvalStatus: 'pending' });
+    
+    res.json({
+      bills,
+      pagination: {
+        current: parseInt(page),
+        pages: Math.ceil(total / limit),
+        total
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching pending bills:', error);
+    res.status(500).json({ message: 'Error fetching pending bills' });
+  }
+});
+
+// Approve a bill (admin only)
+router.put('/:billId/approve', auth, requireRole(['admin']), async (req, res) => {
   try {
     const { billId } = req.params;
-    const bill = await Bill.findById(billId);
+    const { rejectionReason } = req.body;
     
+    const bill = await Bill.findById(billId);
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found' });
     }
     
-    // Check if user has access to this bill (created by user OR assigned to user)
-    const hasAccess = bill.createdBy.toString() === req.user._id.toString() || 
-                     bill.assignedUsers.some(userId => userId.toString() === req.user._id.toString());
-    
-    if (!hasAccess) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (bill.approvalStatus !== 'pending') {
+      return res.status(400).json({ message: 'Bill is not pending approval' });
     }
     
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: 'No files uploaded' });
-    }
+    bill.approvalStatus = 'approved';
+    bill.approvedBy = req.user._id;
+    bill.approvedAt = new Date();
     
-    // Add file information to bill
-    const fileData = req.files.map(file => ({
-      fileName: file.filename,
-      originalName: file.originalname,
-      filePath: file.path,
-      fileSize: file.size,
-      mimeType: file.mimetype
-    }));
-    
-    bill.files.push(...fileData);
     await bill.save();
     
+    await bill.populate('createdBy', 'name email');
+    await bill.populate('assignedUsers', 'name email');
+    await bill.populate('approvedBy', 'name email');
+    
     res.json({
-      message: 'Files uploaded successfully',
-      files: fileData
+      message: 'Bill approved successfully',
+      bill
     });
   } catch (error) {
-    console.error('Error uploading files:', error);
-    res.status(500).json({ message: 'Error uploading files' });
+    console.error('Error approving bill:', error);
+    res.status(500).json({ message: 'Error approving bill' });
   }
 });
 
-// Get bill analytics for user
-router.get('/analytics', auth, requireRole(['user']), async (req, res) => {
+// Reject a bill (admin only)
+router.put('/:billId/reject', auth, requireRole(['admin']), async (req, res) => {
   try {
-    const userId = req.user._id;
+    const { billId } = req.params;
+    const { rejectionReason } = req.body;
     
-    // Get all bills for the user (created by user OR assigned to user)
-    const bills = await Bill.find({
-      $or: [
-        { createdBy: userId },
-        { assignedUsers: userId }
-      ]
-    });
-    
-    // Calculate analytics
-    const totalAmount = bills.reduce((sum, bill) => sum + bill.amount, 0);
-    const averageAmount = bills.length > 0 ? totalAmount / bills.length : 0;
-    
-    // Category breakdown
-    const categoryBreakdown = bills.reduce((acc, bill) => {
-      acc[bill.category] = (acc[bill.category] || 0) + 1;
-      return acc;
-    }, {});
-    
-    // Status breakdown
-    const statusBreakdown = bills.reduce((acc, bill) => {
-      acc[bill.status] = (acc[bill.status] || 0) + 1;
-      return acc;
-    }, {});
-    
-    // Monthly trend (last 6 months)
-    const monthlyTrend = [];
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      const month = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      const monthBills = bills.filter(bill => {
-        const billDate = new Date(bill.createdAt);
-        return billDate.getMonth() === date.getMonth() && billDate.getFullYear() === date.getFullYear();
-      });
-      monthlyTrend.push({
-        month,
-        count: monthBills.length,
-        amount: monthBills.reduce((sum, bill) => sum + bill.amount, 0)
-      });
+    const bill = await Bill.findById(billId);
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found' });
     }
     
-    // Amount by category
-    const amountByCategory = bills.reduce((acc, bill) => {
-      acc[bill.category] = (acc[bill.category] || 0) + bill.amount;
-      return acc;
-    }, {});
+    if (bill.approvalStatus !== 'pending') {
+      return res.status(400).json({ message: 'Bill is not pending approval' });
+    }
+    
+    bill.approvalStatus = 'rejected';
+    bill.approvedBy = req.user._id;
+    bill.approvedAt = new Date();
+    bill.rejectionReason = rejectionReason;
+    
+    await bill.save();
+    
+    await bill.populate('createdBy', 'name email');
+    await bill.populate('assignedUsers', 'name email');
+    await bill.populate('approvedBy', 'name email');
     
     res.json({
-      totalBills: bills.length,
-      totalAmount,
-      averageAmount,
-      categoryBreakdown,
-      statusBreakdown,
-      monthlyTrend,
-      amountByCategory
+      message: 'Bill rejected successfully',
+      bill
     });
   } catch (error) {
-    console.error('Error fetching bill analytics:', error);
-    res.status(500).json({ message: 'Error fetching analytics' });
+    console.error('Error rejecting bill:', error);
+    res.status(500).json({ message: 'Error rejecting bill' });
   }
 });
+
 
 // Update bill status (mark as paid, etc.)
 router.patch('/:billId/status', auth, requireRole(['user']), async (req, res) => {

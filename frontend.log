@@ -3,21 +3,7 @@
 > vite
 
 
-  VITE v7.1.4  ready in 79 ms
+  VITE v7.1.4  ready in 291 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
-9:21:18 AM [vite] (client) page reload test-registration.html
-9:21:36 AM [vite] (client) hmr update /src/context/AuthContext.jsx, /src/index.css
-9:21:48 AM [vite] (client) page reload test-registration.html
-9:21:48 AM [vite] (client) hmr update /src/context/AuthContext.jsx, /src/index.css
-9:24:41 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:24:49 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:25:01 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:26:32 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:32:11 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:32:23 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:32:34 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:32:48 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:33:04 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css
-9:33:19 AM [vite] (client) hmr update /src/pages/ModernRegister.jsx, /src/index.css

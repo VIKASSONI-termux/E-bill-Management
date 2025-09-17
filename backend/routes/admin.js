@@ -5,6 +5,17 @@ const Bill = require('../models/Bill');
 const { auth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
+// Check if admin already exists (public endpoint for registration)
+router.get('/check-admin', async (req, res) => {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    res.json({ adminExists: adminCount > 0 });
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    res.status(500).json({ message: 'Error checking admin status' });
+  }
+});
+
 // Get system statistics
 router.get('/stats', auth, requireRole(['admin']), async (req, res) => {
   try {
@@ -159,6 +170,16 @@ router.put('/users/:userId/role', auth, requireRole(['admin']), async (req, res)
       return res.status(400).json({ message: 'Invalid role' });
     }
 
+    // Check if trying to assign admin role and admin already exists
+    if (role === 'admin') {
+      const existingAdmin = await User.findOne({ role: 'admin' });
+      if (existingAdmin && existingAdmin._id.toString() !== userId) {
+        return res.status(400).json({
+          message: 'An admin already exists. Only one admin is allowed in the system.'
+        });
+      }
+    }
+
     const user = await User.findByIdAndUpdate(
       userId,
       { role },
@@ -211,8 +232,10 @@ router.get('/reports', auth, requireRole(['admin']), async (req, res) => {
     const { page = 1, limit = 10, status, search } = req.query;
     const skip = (page - 1) * limit;
 
-    // Build query
-    const query = {};
+    // Build query - exclude reports marked for deletion
+    const query = { 
+      'metadata.deletionRequested': { $ne: 'true' }
+    };
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -242,6 +265,113 @@ router.get('/reports', auth, requireRole(['admin']), async (req, res) => {
   } catch (error) {
     console.error('Error fetching reports:', error);
     res.status(500).json({ message: 'Error fetching reports' });
+  }
+});
+
+// Update report (admin only)
+router.put('/reports/:id', auth, requireRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, priority, status, amount, dueDate, assignedUsers, tags } = req.body;
+
+    const report = await Report.findById(id);
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    // Handle assignedUsers - it might be an array or JSON string
+    let assignedUsersArray = [];
+    if (assignedUsers) {
+      if (typeof assignedUsers === 'string') {
+        try {
+          assignedUsersArray = JSON.parse(assignedUsers);
+        } catch (e) {
+          // If it's not valid JSON, treat as comma-separated string
+          assignedUsersArray = assignedUsers.split(',').map(id => id.trim()).filter(id => id);
+        }
+      } else if (Array.isArray(assignedUsers)) {
+        assignedUsersArray = assignedUsers;
+      }
+    }
+    
+    // Handle tags - it might be an array or JSON string
+    let tagsArray = [];
+    if (tags) {
+      if (typeof tags === 'string') {
+        try {
+          tagsArray = JSON.parse(tags);
+        } catch (e) {
+          // If it's not valid JSON, treat as comma-separated string
+          tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+        }
+      } else if (Array.isArray(tags)) {
+        tagsArray = tags;
+      }
+    }
+
+    // Update report fields
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (category !== undefined) updateData.category = category;
+    if (priority !== undefined) updateData.priority = priority;
+    if (status !== undefined) updateData.status = status;
+    if (amount !== undefined) updateData.amount = parseFloat(amount);
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    if (assignedUsers !== undefined) updateData.assignedUsers = assignedUsersArray;
+    if (tags !== undefined) updateData.tags = tagsArray;
+
+    // Add metadata for admin edit
+    updateData.metadata = {
+      ...report.metadata,
+      lastEditedBy: req.user._id,
+      lastEditedAt: new Date()
+    };
+
+    const updatedReport = await Report.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'name email registrationNumber')
+     .populate('assignedUsers', 'name email registrationNumber');
+
+    res.json({
+      message: 'Report updated successfully',
+      report: updatedReport
+    });
+  } catch (error) {
+    console.error('Error updating report:', error);
+    res.status(500).json({ message: 'Error updating report' });
+  }
+});
+
+// Delete report (admin only)
+router.delete('/reports/:id', auth, requireRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const report = await Report.findById(id);
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    // Soft delete by marking for deletion
+    report.metadata = {
+      ...report.metadata,
+      deletionRequested: 'true',
+      deletedBy: req.user._id,
+      deletedAt: new Date()
+    };
+    report.approvalStatus = 'pending';
+
+    await report.save();
+
+    res.json({
+      message: 'Report marked for deletion successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting report:', error);
+    res.status(500).json({ message: 'Error deleting report' });
   }
 });
 

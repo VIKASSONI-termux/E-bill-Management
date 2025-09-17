@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import FileUpload from '../components/FileUpload';
 import { 
   Users, 
   FileText, 
@@ -24,8 +28,27 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle,
-  Clock
+  Clock,
+  Plus
 } from 'lucide-react';
+
+const reportSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
+  category: z.string().min(1, 'Category is required'),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  status: z.enum(['draft', 'active', 'archived']).default('active'),
+  assignedUsers: z.array(z.string()).optional(),
+  tags: z.string().optional(),
+  amount: z.string().min(1, 'Amount is required').transform((val) => {
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 0) {
+      throw new Error('Amount must be a positive number');
+    }
+    return num;
+  }),
+  dueDate: z.string().optional(),
+});
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -44,6 +67,8 @@ const AdminDashboard = () => {
           <Route path="dashboard" element={<AdminOverview />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="reports" element={<ReportOverview />} />
+          <Route path="reports/create" element={<AdminCreateReport />} />
+          <Route path="approvals" element={<ApprovalManagement />} />
           <Route path="stats" element={<SystemStats />} />
         </Routes>
       </div>
@@ -53,10 +78,12 @@ const AdminDashboard = () => {
 
 const AdminOverview = () => {
   const [stats, setStats] = useState(null);
+  const [pendingCount, setPendingCount] = useState({ bills: 0, reports: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
+    fetchPendingCount();
   }, []);
 
   const fetchStats = async () => {
@@ -67,6 +94,24 @@ const AdminOverview = () => {
       console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingCount = async () => {
+    try {
+      const [billsResponse, reportsResponse, deletionsResponse] = await Promise.all([
+        axios.get('http://localhost:5001/api/bills/pending-approval'),
+        axios.get('http://localhost:5001/api/reports/pending-approval'),
+        axios.get('http://localhost:5001/api/reports/pending-deletion')
+      ]);
+      
+      setPendingCount({
+        bills: billsResponse.data.pagination?.total || 0,
+        reports: reportsResponse.data.pagination?.total || 0,
+        deletions: deletionsResponse.data.pagination?.total || 0
+      });
+    } catch (error) {
+      console.error('Error fetching pending count:', error);
     }
   };
 
@@ -83,14 +128,14 @@ const AdminOverview = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">System Overview</h2>
-        <Button onClick={fetchStats} variant="outline" size="sm">
+        <Button onClick={() => { fetchStats(); fetchPendingCount(); }} variant="outline" size="sm">
           <TrendingUp className="w-4 h-4 mr-2" />
           Refresh
         </Button>
       </div>
       
       {/* Main Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
@@ -123,7 +168,7 @@ const AdminOverview = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -131,13 +176,13 @@ const AdminOverview = () => {
                   <FileText className="w-6 h-6 text-purple-600" />
                 </div>
               </div>
-              <div className="ml-4">
+               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Bills</p>
                 <p className="text-2xl font-bold text-gray-900">{stats?.bills?.total || 0}</p>
-              </div>
+              </div> 
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card>
           <CardContent className="p-6">
@@ -150,6 +195,25 @@ const AdminOverview = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Reports</p>
                 <p className="text-2xl font-bold text-gray-900">{stats?.reports?.total || 0}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-yellow-600" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Pending Approvals</p>
+                <p className="text-2xl font-bold text-gray-900">{pendingCount.bills + pendingCount.reports + pendingCount.deletions}</p>
+                <p className="text-xs text-gray-500">
+                  {pendingCount.bills} bills, {pendingCount.reports} reports, {pendingCount.deletions} deletions
+                </p>
               </div>
             </div>
           </CardContent>
@@ -180,7 +244,7 @@ const AdminOverview = () => {
       </Card>
 
       {/* Bills by Status */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Bills by Status</CardTitle>
           <CardDescription>Current status distribution of all bills</CardDescription>
@@ -202,7 +266,7 @@ const AdminOverview = () => {
             ))}
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Quick Actions */}
       <Card>
@@ -211,17 +275,36 @@ const AdminOverview = () => {
           <CardDescription>Common administrative tasks</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Link to="/admin/users">
               <Button className="w-full h-20 flex flex-col items-center justify-center space-y-2">
                 <Users className="w-6 h-6" />
                 <span>Manage Users</span>
               </Button>
             </Link>
+            <Link to="/admin/approvals">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center space-y-2 border-yellow-300 text-yellow-700 hover:bg-yellow-50 relative">
+                <div className="relative">
+                  <Shield className="w-6 h-6" />
+                  {(pendingCount.bills + pendingCount.reports + pendingCount.deletions) > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {pendingCount.bills + pendingCount.reports + pendingCount.deletions}
+                    </span>
+                  )}
+                </div>
+                <span>Pending Approvals</span>
+              </Button>
+            </Link>
             <Link to="/admin/reports">
               <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center space-y-2">
                 <FileText className="w-6 h-6" />
                 <span>View All Reports</span>
+              </Button>
+            </Link>
+            <Link to="/admin/reports/create">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center space-y-2 border-green-300 text-green-700 hover:bg-green-50">
+                <Plus className="w-6 h-6" />
+                <span>Create Report</span>
               </Button>
             </Link>
             <Link to="/admin/stats">
@@ -468,6 +551,9 @@ const ReportOverview = () => {
   const [activeTab, setActiveTab] = useState('reports');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [editingReport, setEditingReport] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, reportId: null, reportTitle: '' });
 
   useEffect(() => {
     if (activeTab === 'reports') {
@@ -509,6 +595,64 @@ const ReportOverview = () => {
     }
   };
 
+  const downloadReportFile = async (reportId, fileId, fileName) => {
+    try {
+      const response = await axios.get(`http://localhost:5001/api/reports/${reportId}/files/${fileId}/download`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Error downloading file');
+    }
+  };
+
+  const handleEditReport = (report) => {
+    setEditingReport(report);
+    setShowEditModal(true);
+  };
+
+  const handleDeleteReport = (reportId, reportTitle) => {
+    setDeleteConfirm({
+      show: true,
+      reportId,
+      reportTitle
+    });
+  };
+
+  const confirmDeleteReport = async () => {
+    try {
+      await axios.delete(`http://localhost:5001/api/admin/reports/${deleteConfirm.reportId}`);
+      alert('Report marked for deletion successfully');
+      setDeleteConfirm({ show: false, reportId: null, reportTitle: '' });
+      fetchReports(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      alert('Error deleting report');
+    }
+  };
+
+  const handleUpdateReport = async (updatedData) => {
+    try {
+      const response = await axios.put(`http://localhost:5001/api/admin/reports/${editingReport._id}`, updatedData);
+      alert('Report updated successfully');
+      setShowEditModal(false);
+      setEditingReport(null);
+      fetchReports(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating report:', error);
+      alert('Error updating report');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -521,7 +665,7 @@ const ReportOverview = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Reports & Bills Overview</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Reports Overview</h2>
         <Button onClick={activeTab === 'reports' ? fetchReports : fetchBills} variant="outline" size="sm">
           <FileText className="w-4 h-4 mr-2" />
           Refresh
@@ -541,7 +685,7 @@ const ReportOverview = () => {
           >
             Reports ({reports.length})
           </button>
-          <button
+          {/* <button
             onClick={() => setActiveTab('bills')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'bills'
@@ -550,7 +694,7 @@ const ReportOverview = () => {
             }`}
           >
             Bills ({bills.length})
-          </button>
+          </button> */}
         </nav>
       </div>
 
@@ -630,6 +774,55 @@ const ReportOverview = () => {
                     <span className="text-gray-500">Created:</span>
                     <span>{new Date(report.createdAt).toLocaleDateString()}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount:</span>
+                    <span className="font-medium">${report.amount || 0}</span>
+                  </div>
+                </div>
+                
+                {/* Files Section */}
+                {report.files && report.files.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Files:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {report.files.map((file, index) => (
+                        <Button
+                          key={index}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => downloadReportFile(report._id, file._id || index, file.originalName)}
+                          className="text-xs"
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          {file.originalName}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Actions */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditReport(report)}
+                      className="flex-1"
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteReport(report._id, report.title)}
+                      className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -689,6 +882,237 @@ const ReportOverview = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Report Modal */}
+      {showEditModal && editingReport && (
+        <EditReportModal
+          report={editingReport}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingReport(null);
+          }}
+          onSave={handleUpdateReport}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <AlertCircle className="w-6 h-6 text-red-600 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete the report "{deleteConfirm.reportTitle}"? 
+              This action will mark the report for deletion and it will no longer be visible to users.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirm({ show: false, reportId: null, reportTitle: '' })}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={confirmDeleteReport}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Report
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const EditReportModal = ({ report, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    title: report.title || '',
+    description: report.description || '',
+    category: report.category || 'other',
+    priority: report.priority || 'medium',
+    status: report.status || 'active',
+    amount: report.amount || 0,
+    dueDate: report.dueDate ? new Date(report.dueDate).toISOString().split('T')[0] : '',
+    assignedUsers: report.assignedUsers ? report.assignedUsers.map(user => user._id).join(',') : '',
+    tags: report.tags ? report.tags.join(',') : ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Edit Report</h3>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            ✕
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
+              </label>
+              <Input
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                required
+                placeholder="Report title"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category *
+              </label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="other">Other</option>
+                <option value="financial">Financial</option>
+                <option value="operational">Operational</option>
+                <option value="technical">Technical</option>
+                <option value="compliance">Compliance</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="safety">Safety</option>
+                <option value="quality">Quality</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Priority
+              </label>
+              <select
+                name="priority"
+                value={formData.priority}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Amount
+              </label>
+              <Input
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount}
+                onChange={handleChange}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Due Date
+              </label>
+              <Input
+                name="dueDate"
+                type="date"
+                value={formData.dueDate}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Report description"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Assigned Users (comma-separated user IDs)
+            </label>
+            <Input
+              name="assignedUsers"
+              value={formData.assignedUsers}
+              onChange={handleChange}
+              placeholder="user1, user2, user3"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tags (comma-separated)
+            </label>
+            <Input
+              name="tags"
+              value={formData.tags}
+              onChange={handleChange}
+              placeholder="tag1, tag2, tag3"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Edit className="w-4 h-4 mr-2" />
+              Update Report
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
@@ -799,7 +1223,7 @@ const SystemStats = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -814,7 +1238,7 @@ const SystemStats = () => {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card>
           <CardContent className="p-6">
@@ -835,7 +1259,7 @@ const SystemStats = () => {
       </div>
 
       {/* Detailed Statistics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         {/* User Role Distribution */}
         <Card>
           <CardHeader>
@@ -870,7 +1294,7 @@ const SystemStats = () => {
         </Card>
 
         {/* Bill Status Distribution */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Bill Status Distribution</CardTitle>
             <CardDescription>Current status of all bills</CardDescription>
@@ -908,7 +1332,7 @@ const SystemStats = () => {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Analytics Section */}
@@ -920,7 +1344,7 @@ const SystemStats = () => {
           </CardContent>
         </Card>
       ) : analytics && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* Recent Activity */}
           <Card>
             <CardHeader>
@@ -938,7 +1362,7 @@ const SystemStats = () => {
                     {analytics.userAnalytics.reduce((sum, item) => sum + item.count, 0)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                {/* <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                   <div className="flex items-center">
                     <FileText className="w-5 h-5 text-green-600 mr-3" />
                     <span className="text-sm font-medium text-gray-700">New Bills</span>
@@ -946,13 +1370,13 @@ const SystemStats = () => {
                   <span className="text-lg font-bold text-green-600">
                     {analytics.billAnalytics.reduce((sum, item) => sum + item.count, 0)}
                   </span>
-                </div>
+                </div> */}
               </div>
             </CardContent>
           </Card>
 
           {/* Category Breakdown */}
-          <Card>
+          {/* <Card>
             <CardHeader>
               <CardTitle>Bill Categories</CardTitle>
               <CardDescription>Distribution by category</CardDescription>
@@ -974,9 +1398,729 @@ const SystemStats = () => {
                 ))}
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
       )}
+    </div>
+  );
+};
+
+const ApprovalManagement = () => {
+  const [pendingBills, setPendingBills] = useState([]);
+  const [pendingReports, setPendingReports] = useState([]);
+  const [pendingDeletions, setPendingDeletions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('bills');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [pendingRejection, setPendingRejection] = useState(null);
+
+  useEffect(() => {
+    fetchPendingItems();
+  }, []);
+
+  const fetchPendingItems = async () => {
+    try {
+      setLoading(true);
+      const [billsResponse, reportsResponse, deletionsResponse] = await Promise.all([
+        axios.get('http://localhost:5001/api/bills/pending-approval'),
+        axios.get('http://localhost:5001/api/reports/pending-approval'),
+        axios.get('http://localhost:5001/api/reports/pending-deletion')
+      ]);
+      
+      setPendingBills(billsResponse.data.bills || []);
+      setPendingReports(reportsResponse.data.reports || []);
+      setPendingDeletions(deletionsResponse.data.reports || []);
+    } catch (error) {
+      console.error('Error fetching pending items:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (type, id) => {
+    try {
+      const endpoint = type === 'bill' 
+        ? `http://localhost:5001/api/bills/${id}/approve`
+        : `http://localhost:5001/api/reports/${id}/approve`;
+      
+      await axios.put(endpoint);
+      alert(`${type === 'bill' ? 'Bill' : 'Report'} approved successfully!`);
+      fetchPendingItems();
+    } catch (error) {
+      console.error(`Error approving ${type}:`, error);
+      alert(`Error approving ${type}`);
+    }
+  };
+
+  const handleReject = (type, id) => {
+    setPendingRejection({ type, id });
+    setShowRejectionModal(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectionReason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+
+    if (!pendingRejection) return;
+
+    try {
+      const endpoint = pendingRejection.type === 'bill' 
+        ? `http://localhost:5001/api/bills/${pendingRejection.id}/reject`
+        : `http://localhost:5001/api/reports/${pendingRejection.id}/reject`;
+      
+      await axios.put(endpoint, { rejectionReason });
+      alert(`${pendingRejection.type === 'bill' ? 'Bill' : 'Report'} rejected successfully!`);
+      setRejectionReason('');
+      setShowRejectionModal(false);
+      setPendingRejection(null);
+      fetchPendingItems();
+    } catch (error) {
+      console.error(`Error rejecting ${pendingRejection.type}:`, error);
+      alert(`Error rejecting ${pendingRejection.type}`);
+    }
+  };
+
+  const handleApproveDeletion = async (reportId) => {
+    try {
+      await axios.put(`http://localhost:5001/api/reports/${reportId}/approve-deletion`);
+      alert('Report deletion approved successfully!');
+      fetchPendingItems();
+    } catch (error) {
+      console.error('Error approving deletion:', error);
+      alert('Error approving deletion');
+    }
+  };
+
+  const handleRejectDeletion = async (reportId) => {
+    try {
+      await axios.put(`http://localhost:5001/api/reports/${reportId}/reject-deletion`);
+      alert('Report deletion rejected. Report restored.');
+      fetchPendingItems();
+    } catch (error) {
+      console.error('Error rejecting deletion:', error);
+      alert('Error rejecting deletion');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Loading pending approvals...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pending Approvals</h1>
+          <p className="text-gray-600">Review and approve bills and reports created by operations managers</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          {/* <button
+            onClick={() => setActiveTab('bills')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'bills'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Bills ({pendingBills.length})
+          </button> */}
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'reports'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Reports ({pendingReports.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('deletions')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'deletions'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Deletion Requests ({pendingDeletions.length})
+          </button>
+        </nav>
+      </div>
+
+      {/* Bills Tab */}
+      {activeTab === 'bills' && (
+        <div className="space-y-4">
+          {pendingBills.length === 0 ? (
+            <div className="text-center py-12">
+              <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No pending bills</h3>
+              <p className="mt-1 text-sm text-gray-500">All bills have been reviewed.</p>
+            </div>
+          ) : (
+            pendingBills.map(bill => (
+              <Card key={bill._id} className="border-l-4 border-l-yellow-400">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{bill.title}</CardTitle>
+                      <CardDescription>
+                        Created by {bill.createdBy?.name} ({bill.createdBy?.role}) • {new Date(bill.createdAt).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+                        Pending Approval
+                      </span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-600">{bill.description}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Amount:</span>
+                        <p className="text-gray-900">${bill.amount}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Category:</span>
+                        <p className="text-gray-900">{bill.category}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Priority:</span>
+                        <p className="text-gray-900">{bill.priority}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Due Date:</span>
+                        <p className="text-gray-900">{bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : 'Not set'}</p>
+                      </div>
+                    </div>
+
+                    {bill.assignedUsers && bill.assignedUsers.length > 0 && (
+                      <div>
+                        <span className="font-medium text-gray-700 text-sm">Assigned to:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {bill.assignedUsers.map(user => (
+                            <span key={user._id} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                              {user.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end space-x-3 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleReject('bill', bill._id)}
+                        className="text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        onClick={() => handleApprove('bill', bill._id)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Reports Tab */}
+      {activeTab === 'reports' && (
+        <div className="space-y-4">
+          {pendingReports.length === 0 ? (
+            <div className="text-center py-12">
+              <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No pending reports</h3>
+              <p className="mt-1 text-sm text-gray-500">All reports have been reviewed.</p>
+            </div>
+          ) : (
+            pendingReports.map(report => (
+              <Card key={report._id} className="border-l-4 border-l-yellow-400">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{report.title}</CardTitle>
+                      <CardDescription>
+                        Created by {report.createdBy?.name} ({report.createdBy?.role}) • {new Date(report.createdAt).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+                        Pending Approval
+                      </span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-600">{report.description}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Category:</span>
+                        <p className="text-gray-900">{report.category || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Priority:</span>
+                        <p className="text-gray-900">{report.priority}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Status:</span>
+                        <p className="text-gray-900">{report.status}</p>
+                      </div>
+                    </div>
+
+                    {report.assignedUsers && report.assignedUsers.length > 0 && (
+                      <div>
+                        <span className="font-medium text-gray-700 text-sm">Assigned to:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {report.assignedUsers.map(user => (
+                            <span key={user._id} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                              {user.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end space-x-3 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleReject('report', report._id)}
+                        className="text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        onClick={() => handleApprove('report', report._id)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Deletion Requests Tab */}
+      {activeTab === 'deletions' && (
+        <div className="space-y-4">
+          {pendingDeletions.length === 0 ? (
+            <div className="text-center py-12">
+              <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No pending deletion requests</h3>
+              <p className="mt-1 text-sm text-gray-500">All deletion requests have been reviewed.</p>
+            </div>
+          ) : (
+            pendingDeletions.map(report => (
+              <Card key={report._id} className="border-l-4 border-l-red-400">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg text-red-800">{report.title}</CardTitle>
+                      <CardDescription>
+                        Deletion requested by {report.createdBy?.name} ({report.createdBy?.role}) • {new Date(report.updatedAt).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                        Pending Deletion
+                      </span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-600">{report.description}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Category:</span>
+                        <p className="text-gray-900">{report.category || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Priority:</span>
+                        <p className="text-gray-900">{report.priority}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Created:</span>
+                        <p className="text-gray-900">{new Date(report.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    {report.assignedUsers && report.assignedUsers.length > 0 && (
+                      <div>
+                        <span className="font-medium text-gray-700 text-sm">Assigned to:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {report.assignedUsers.map(user => (
+                            <span key={user._id} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                              {user.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end space-x-3 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleRejectDeletion(report._id)}
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                      >
+                        Restore Report
+                      </Button>
+                      <Button
+                        onClick={() => handleApproveDeletion(report._id)}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Approve Deletion
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Rejection Reason Modal */}
+      {showRejectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Reject {pendingRejection?.type === 'bill' ? 'Bill' : 'Report'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Please provide a reason for rejecting this {pendingRejection?.type}:
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Please provide a reason for rejection..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+            />
+            <div className="flex justify-end space-x-3 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRejectionModal(false);
+                  setPendingRejection(null);
+                  setRejectionReason('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmReject}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Submit Rejection
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdminCreateReport = () => {
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch
+  } = useForm({
+    resolver: zodResolver(reportSchema),
+  });
+
+  const assignedUsers = watch('assignedUsers') || [];
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      console.log('Fetching assignable users...');
+      const response = await axios.get('http://localhost:5001/api/reports/users/assignable');
+      console.log('Users received:', response.data);
+      setUsers(response.data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      // Create FormData to handle file upload
+      const formData = new FormData();
+      
+      // Add all form fields
+      formData.append('title', data.title);
+      formData.append('description', data.description || '');
+      formData.append('category', data.category);
+      formData.append('priority', data.priority || 'medium');
+      formData.append('amount', data.amount);
+      if (data.dueDate) formData.append('dueDate', data.dueDate);
+      
+      // Add assigned users as JSON string
+      if (data.assignedUsers && data.assignedUsers.length > 0) {
+        formData.append('assignedUsers', JSON.stringify(data.assignedUsers));
+      }
+      
+      // Add tags as JSON string
+      if (data.tags) {
+        const tagsArray = data.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+        formData.append('tags', JSON.stringify(tagsArray));
+      }
+      
+      // Add file if selected
+      if (selectedFiles.length > 0) {
+        console.log('Uploading file:', selectedFiles[0]);
+        formData.append('file', selectedFiles[0]); // Only upload first file for now
+      } else {
+        console.log('No files selected');
+      }
+
+      console.log('Sending report data:', {
+        title: data.title,
+        category: data.category,
+        amount: data.amount,
+        hasFile: selectedFiles.length > 0
+      });
+
+      const response = await axios.post('http://localhost:5001/api/reports', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      alert('Report created successfully! (Auto-approved as admin)');
+      navigate('/admin/reports');
+    } catch (error) {
+      console.error('Error creating report:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error creating report';
+      alert(`Error creating report: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Create New Report</h2>
+          <p className="mt-2 text-gray-600">Create a new report (automatically approved as admin)</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/admin/reports')}>
+          Back to Reports
+        </Button>
+      </div>
+
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Report Details</CardTitle>
+          <CardDescription>
+            Fill in the details to create a new report. As an admin, this report will be automatically approved.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Report Title *
+              </label>
+              <Input
+                {...register('title')}
+                placeholder="Enter report title"
+                className={errors.title ? 'border-red-500' : ''}
+              />
+              {errors.title && (
+                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                {...register('description')}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter report description"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category *
+                </label>
+                <select
+                  {...register('category', { required: 'Category is required' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Category</option>
+                  <option value="electricity">Electricity</option>
+                  <option value="water">Water</option>
+                  <option value="gas">Gas</option>
+                  <option value="internet">Internet</option>
+                  <option value="phone">Phone</option>
+                  <option value="rent">Rent</option>
+                  <option value="insurance">Insurance</option>
+                  <option value="other">Other</option>
+                </select>
+                {errors.category && (
+                  <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount *
+                </label>
+                <Input
+                  {...register('amount')}
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  className={errors.amount ? 'border-red-500' : ''}
+                />
+                {errors.amount && (
+                  <p className="mt-1 text-sm text-red-600">{errors.amount.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Priority
+                </label>
+                <select
+                  {...register('priority')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Due Date
+              </label>
+              <Input
+                {...register('dueDate')}
+                type="date"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assign to Users
+              </label>
+              <select
+                multiple
+                {...register('assignedUsers')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {users.map(user => (
+                  <option key={user._id} value={user._id}>
+                    {user.name} ({user.registrationNumber})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">Hold Ctrl/Cmd to select multiple users</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tags
+              </label>
+              <Input
+                {...register('tags')}
+                placeholder="Enter tags separated by commas"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Attach Files
+              </label>
+              <FileUpload
+                onFileSelect={setSelectedFiles}
+                maxFiles={5}
+                acceptedTypes={{
+                  'application/pdf': ['.pdf'],
+                  'application/msword': ['.doc'],
+                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+                  'application/vnd.ms-excel': ['.xls'],
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                  'text/plain': ['.txt'],
+                  'image/*': ['.jpg', '.jpeg', '.png', '.gif']
+                }}
+              />
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/admin/reports')}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Creating...' : 'Create Report (Auto-Approved)'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -27,10 +27,19 @@ import {
 const reportSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  category: z.string().optional(),
+  category: z.string().min(1, 'Category is required'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  status: z.enum(['draft', 'active', 'archived']).default('active'),
   assignedUsers: z.array(z.string()).optional(),
   tags: z.string().optional(),
+  amount: z.string().min(1, 'Amount is required').transform((val) => {
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 0) {
+      throw new Error('Amount must be a positive number');
+    }
+    return num;
+  }),
+  dueDate: z.string().optional(),
 });
 
 const EnhancedReportManagement = () => {
@@ -97,6 +106,26 @@ const ReportOverview = () => {
         console.error('Error deleting report:', error);
         alert('Error deleting report');
       }
+    }
+  };
+
+  const downloadReportFile = async (reportId, fileId, fileName) => {
+    try {
+      const response = await axios.get(`http://localhost:5001/api/reports/${reportId}/files/${fileId}/download`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Error downloading file');
     }
   };
 
@@ -222,6 +251,35 @@ const ReportOverview = () => {
                     {new Date(report.createdAt).toLocaleDateString()}
                   </span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Files</span>
+                  <div className="flex items-center space-x-1">
+                    {report.files && report.files.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {report.files.slice(0, 2).map((file, index) => (
+                          <Button
+                            key={index}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadReportFile(report._id, file._id || index, file.originalName)}
+                            className="text-xs px-2 py-1 h-6"
+                          >
+                            <Download className="w-3 h-3 mr-1" />
+                            {file.originalName.length > 8 ? 
+                              file.originalName.substring(0, 8) + '...' : 
+                              file.originalName
+                            }
+                          </Button>
+                        ))}
+                        {report.files.length > 2 && (
+                          <span className="text-xs text-gray-500">+{report.files.length - 2}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">No files</span>
+                    )}
+                  </div>
+                </div>
                 {report.tags && report.tags.length > 0 && (
                   <div className="flex items-center space-x-1">
                     <Tag className="h-3 w-3 text-gray-400" />
@@ -305,30 +363,53 @@ const CreateReport = () => {
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const reportData = {
-        ...data,
-        assignedUsers: assignedUsers,
-        tags: data.tags ? data.tags.split(',').map(tag => tag.trim()) : []
-      };
-
-      const response = await axios.post('http://localhost:5001/api/reports', reportData);
+      // Create FormData to handle file upload
+      const formData = new FormData();
       
-      // Upload files if any
-      if (selectedFiles.length > 0) {
-        for (const file of selectedFiles) {
-          const formData = new FormData();
-          formData.append('file', file);
-          await axios.post(`http://localhost:5001/api/files/upload/${response.data.report._id}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-        }
+      // Add all form fields
+      formData.append('title', data.title);
+      formData.append('description', data.description || '');
+      formData.append('category', data.category);
+      formData.append('priority', data.priority || 'medium');
+      formData.append('amount', data.amount);
+      if (data.dueDate) formData.append('dueDate', data.dueDate);
+      
+      // Add assigned users as JSON string
+      if (data.assignedUsers && data.assignedUsers.length > 0) {
+        formData.append('assignedUsers', JSON.stringify(data.assignedUsers));
       }
+      
+      // Add tags as JSON string
+      if (data.tags) {
+        const tagsArray = data.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+        formData.append('tags', JSON.stringify(tagsArray));
+      }
+      
+      // Add file if selected
+      if (selectedFiles.length > 0) {
+        console.log('Uploading file:', selectedFiles[0]);
+        formData.append('file', selectedFiles[0]); // Only upload first file for now
+      } else {
+        console.log('No files selected');
+      }
+
+      console.log('Sending report data:', {
+        title: data.title,
+        category: data.category,
+        amount: data.amount,
+        hasFile: selectedFiles.length > 0
+      });
+
+      const response = await axios.post('http://localhost:5001/api/reports', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
       alert('Report created successfully!');
       navigate('');
     } catch (error) {
       console.error('Error creating report:', error);
-      alert('Error creating report');
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Error creating report';
+      alert(`Error creating report: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -370,15 +451,37 @@ const CreateReport = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category
+                Category *
+              </label>
+              <select
+                {...register('category', { required: 'Category is required' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Category</option>
+                <option value="electricity">Electricity</option>
+              </select>
+              {errors.category && (
+                <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Amount *
               </label>
               <Input
-                {...register('category')}
-                placeholder="e.g., Monthly Bill, Special Report"
+                {...register('amount')}
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                className={errors.amount ? 'border-red-500' : ''}
               />
+              {errors.amount && (
+                <p className="mt-1 text-sm text-red-600">{errors.amount.message}</p>
+              )}
             </div>
 
             <div>
@@ -399,12 +502,22 @@ const CreateReport = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Due Date
+            </label>
+            <Input
+              {...register('dueDate')}
+              type="date"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Assign to Users
             </label>
             <select
               multiple
-              value={assignedUsers}
-              onChange={(e) => setValue('assignedUsers', Array.from(e.target.selectedOptions, option => option.value))}
+              {...register('assignedUsers')}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {users.map(user => (
@@ -468,6 +581,7 @@ const EditReport = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -520,6 +634,9 @@ const EditReport = () => {
       setValue('description', response.data.description);
       setValue('category', response.data.category);
       setValue('priority', response.data.priority);
+      setValue('amount', response.data.amount || 0);
+      setValue('dueDate', response.data.dueDate ? new Date(response.data.dueDate).toISOString().split('T')[0] : '');
+      setValue('status', response.data.status);
       setValue('assignedUsers', response.data.assignedUsers?.map(u => u._id) || []);
       setValue('tags', response.data.tags?.join(', ') || '');
       console.log('Form values set');
@@ -542,21 +659,71 @@ const EditReport = () => {
     }
   };
 
+  const downloadReportFile = async (reportId, fileId, fileName) => {
+    try {
+      const response = await axios.get(`http://localhost:5001/api/reports/${reportId}/files/${fileId}/download`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Error downloading file');
+    }
+  };
+
   const onSubmit = async (data) => {
     setSaving(true);
     try {
       console.log('Submitting edit form with data:', data);
-      const reportData = {
-        ...data,
-        assignedUsers: assignedUsers,
-        tags: data.tags ? data.tags.split(',').map(tag => tag.trim()) : []
-      };
-      console.log('Sending update request with data:', reportData);
+      
+      // If there are new files to upload, use FormData
+      if (selectedFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('title', data.title);
+        formData.append('description', data.description || '');
+        formData.append('category', data.category);
+        formData.append('priority', data.priority);
+        formData.append('status', data.status);
+        formData.append('amount', data.amount || 0);
+        formData.append('dueDate', data.dueDate || '');
+        formData.append('assignedUsers', JSON.stringify(assignedUsers));
+        formData.append('tags', JSON.stringify(data.tags ? data.tags.split(',').map(tag => tag.trim()) : []));
+        
+        // Add new files
+        selectedFiles.forEach((file, index) => {
+          formData.append('file', file);
+        });
 
-      const response = await axios.put(`http://localhost:5001/api/reports/${id}`, reportData);
-      console.log('Update response:', response.data);
+        console.log('Sending update request with FormData');
+        const response = await axios.put(`http://localhost:5001/api/reports/${id}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        console.log('Update response:', response.data);
+      } else {
+        // No new files, send regular JSON data
+        const reportData = {
+          ...data,
+          assignedUsers: assignedUsers,
+          tags: data.tags ? data.tags.split(',').map(tag => tag.trim()) : []
+        };
+        console.log('Sending update request with data:', reportData);
+
+        const response = await axios.put(`http://localhost:5001/api/reports/${id}`, reportData);
+        console.log('Update response:', response.data);
+      }
+      
       alert('Report updated successfully!');
-      navigate('');
+      navigate('/report-management');
     } catch (error) {
       console.error('Error updating report:', error);
       alert('Error updating report');
@@ -618,10 +785,19 @@ const EditReport = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Category
               </label>
-              <Input
+              <select
                 {...register('category')}
-                placeholder="Enter category"
-              />
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="other">Other</option>
+                <option value="financial">Financial</option>
+                <option value="operational">Operational</option>
+                <option value="technical">Technical</option>
+                <option value="compliance">Compliance</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="safety">Safety</option>
+                <option value="quality">Quality</option>
+              </select>
             </div>
             
             <div>
@@ -638,6 +814,45 @@ const EditReport = () => {
                 <option value="urgent">Urgent</option>
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Amount
+              </label>
+              <Input
+                {...register('amount')}
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Due Date
+              </label>
+              <Input
+                {...register('dueDate')}
+                type="date"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label>
+            <select
+              {...register('status')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
           </div>
 
           <div>
@@ -672,11 +887,55 @@ const EditReport = () => {
             />
           </div>
 
+          {/* Existing Files Section */}
+          {report && report.files && report.files.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Existing Files
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {report.files.map((file, index) => (
+                  <Button
+                    key={index}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadReportFile(report._id, file._id || index, file.originalName)}
+                    className="flex items-center space-x-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{file.originalName}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* New File Upload Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Add New Files
+            </label>
+            <FileUpload
+              onFileSelect={setSelectedFiles}
+              maxFiles={5}
+              acceptedTypes={{
+                'application/pdf': ['.pdf'],
+                'application/msword': ['.doc'],
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+                'application/vnd.ms-excel': ['.xls'],
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                'text/plain': ['.txt'],
+                'image/*': ['.jpg', '.jpeg', '.png', '.gif']
+              }}
+            />
+          </div>
+
           <div className="flex justify-end space-x-4">
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('')}
+              onClick={() => navigate('/report-management')}
             >
               Cancel
             </Button>
@@ -732,6 +991,26 @@ const ViewReport = () => {
     }
   };
 
+  const downloadReportFile = async (reportId, fileId, fileName) => {
+    try {
+      const response = await axios.get(`http://localhost:5001/api/reports/${reportId}/files/${fileId}/download`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Error downloading file');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -756,7 +1035,7 @@ const ViewReport = () => {
           </div>
           <Button
             variant="outline"
-            onClick={() => navigate('')}
+            onClick={() => navigate('/report-management')}
           >
             Back to Reports
           </Button>
@@ -786,6 +1065,16 @@ const ViewReport = () => {
                 <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>
                   {report.status}
                 </span>
+              </div>
+              <div>
+                <span className="font-medium">Amount:</span>
+                <p className="text-gray-600 mt-1">${report.amount || 0}</p>
+              </div>
+              <div>
+                <span className="font-medium">Due Date:</span>
+                <p className="text-gray-600 mt-1">
+                  {report.dueDate ? new Date(report.dueDate).toLocaleDateString() : 'Not set'}
+                </p>
               </div>
             </div>
           </div>
@@ -827,10 +1116,30 @@ const ViewReport = () => {
           </div>
         )}
 
+        {report.files && report.files.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Attached Files</h3>
+            <div className="flex flex-wrap gap-2">
+              {report.files.map((file, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadReportFile(report._id, file._id || index, file.originalName)}
+                  className="flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{file.originalName}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-end space-x-4">
           <Button
             variant="outline"
-            onClick={() => navigate(`edit/${id}`)}
+            onClick={() => navigate(`/report-management/edit/${id}`)}
           >
             Edit Report
           </Button>
